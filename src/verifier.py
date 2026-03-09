@@ -1,17 +1,20 @@
 import json
+import hashlib
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from src.hashing import hash_policy
-import json
-
 
 CONFIG = "config/system_config.json"
 
 
-def load_public_key(path):
+def compute_policy_hash(policy):
 
-    with open(path, "rb") as f:
-        return serialization.load_pem_public_key(f.read())
+    policy_content = {
+        "version": policy["version"],
+        "rule": policy["rule"],
+        "previous_hash": policy["previous_hash"]
+    }
+
+    policy_str = json.dumps(policy_content).encode()
+    return hashlib.sha256(policy_str).hexdigest()
 
 
 def verify_policy(policy_path):
@@ -24,7 +27,16 @@ def verify_policy(policy_path):
     with open(policy_path) as f:
         policy = json.load(f)
 
-    policy_hash = hash_policy(policy_path)
+    stored_hash = policy["policy_hash"]
+
+    computed_hash = compute_policy_hash(policy)
+
+    if stored_hash != computed_hash:
+
+        print("POLICY TAMPERED — HASH MISMATCH")
+        return False, []
+
+    policy_hash = stored_hash
 
     valid = 0
     signers = []

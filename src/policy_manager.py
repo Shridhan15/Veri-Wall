@@ -1,14 +1,22 @@
 import json
-import os
+import hashlib
 
 DRAFT_DIR = "policies/draft/"
 
 def create_policy(version, rule, prev_hash):
 
-    policy = {
+    policy_content = {
         "version": version,
         "rule": rule,
-        "previous_hash": prev_hash,
+        "previous_hash": prev_hash
+    }
+
+    policy_str = json.dumps(policy_content).encode()
+    policy_hash = hashlib.sha256(policy_str).hexdigest()
+
+    policy = {
+        **policy_content,
+        "policy_hash": policy_hash,
         "signatures": []
     }
 

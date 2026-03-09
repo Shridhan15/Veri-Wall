@@ -18,7 +18,10 @@ def sign_policy(policy_path, admin):
     key_path = f"keys/{admin}_private.pem"
     private_key = load_private_key(key_path)
 
-    policy_hash = hash_policy(policy_path)
+    with open(policy_path) as f:
+        policy = json.load(f)
+
+    policy_hash = policy["policy_hash"]
 
     signature = private_key.sign(policy_hash.encode())
 

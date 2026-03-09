@@ -1,0 +1,16 @@
+{
+    "version": "1",
+    "rule": "allow_port_800",
+    "previous_hash": "none",
+    "policy_hash": "6cc82a9b435c62bc2ba9208f2a1686fa3eb4670f342da19831b2b07df535e2ed",
+    "signatures": [
+        {
+            "admin": "admin1",
+            "signature": "5e479c9f15e81e8883e9b34b4db986130969943b5c418c4dd1d2aff32140f56383b6e55da8ada6dd052d493a877ae525f21721bb77854905771953a91244de01"
+        },
+        {
+            "admin": "admin2",
+            "signature": "31c06341817cad3ba043ae501d4a6b7357e877f0bd7808680096c17a9e92995096b54a345ac83b416bfd4e891b899c8747d94f323d27282ac007a55c0dbdc709"
+        }
+    ]
+}
