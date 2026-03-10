@@ -5,6 +5,14 @@ from cryptography.hazmat.primitives import serialization
 CONFIG = "config/system_config.json"
 
 
+def load_public_key(path):
+
+    with open(path, "rb") as f:
+        return serialization.load_pem_public_key(
+            f.read()
+        )
+
+
 def compute_policy_hash(policy):
 
     policy_content = {
@@ -28,7 +36,6 @@ def verify_policy(policy_path):
         policy = json.load(f)
 
     stored_hash = policy["policy_hash"]
-
     computed_hash = compute_policy_hash(policy)
 
     if stored_hash != computed_hash:

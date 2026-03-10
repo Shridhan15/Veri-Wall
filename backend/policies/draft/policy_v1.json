@@ -1,6 +1,6 @@
 {
     "version": "1",
-    "rule": "allow_port_800",
+    "rule": "allow_port_8080",
     "previous_hash": "none",
     "policy_hash": "6cc82a9b435c62bc2ba9208f2a1686fa3eb4670f342da19831b2b07df535e2ed",
     "signatures": [
