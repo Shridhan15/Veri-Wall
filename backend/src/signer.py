@@ -1,5 +1,6 @@
 import json
 import os
+import hashlib
 from cryptography.hazmat.primitives import serialization
 
 DRAFT_DIR = "policies/draft/"
@@ -27,13 +28,35 @@ def sign_policy(filename, current_admin):
         if sig["admin"] == current_admin:
             return False, f"{current_admin} has already signed this policy."
 
-    # 3. Load Private Key and Sign the Hash
+    # 3. WYSIWYS CHECK: RECALCULATE HASH BEFORE SIGNING
+    try:
+        policy_content = {
+            "policyName": policy["policyName"],
+            "version": policy["version"],
+            "previous_hash": policy["previous_hash"],
+            "rule": policy["rule"],
+            "creator": policy["creator"],
+            "created_at": policy["created_at"],
+            "justification": policy["justification"]
+        }
+        
+        # Deterministic Hash Generation
+        policy_str = json.dumps(policy_content, sort_keys=True).encode()
+        recalculated_hash = hashlib.sha256(policy_str).hexdigest()
+        
+        # Security Alert! The file data was modified after it was hashed.
+        if recalculated_hash != policy["policy_hash"]:
+            return False, "🚨 SECURITY ALERT: The policy file was tampered with after creation! Hash mismatch."
+            
+    except KeyError as e:
+        return False, f"Malformed policy file. Missing field: {e}"
+
+    # 4. Load Private Key and Sign the VERIFIED Hash
     try:
         private_key = load_private_key(current_admin)
-        policy_hash = policy["policy_hash"]
         
         # The actual cryptographic signing
-        signature = private_key.sign(policy_hash.encode())
+        signature = private_key.sign(recalculated_hash.encode())
         
         # Append the hex signature to the envelope
         policy["signatures"].append({
