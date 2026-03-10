@@ -1,74 +1,72 @@
 import json
 import hashlib
+import os
+from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
 
-CONFIG = "config/system_config.json"
+REQUIRED_SIGNATURES = 2
 
-
-def load_public_key(path):
-
+def load_public_key(admin_name):
+    """Loads the public key to verify an admin's signature."""
+    path = f"keys/{admin_name}_public.pem"
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Public key for {admin_name} not found.")
+        
     with open(path, "rb") as f:
-        return serialization.load_pem_public_key(
-            f.read()
-        )
+        return serialization.load_pem_public_key(f.read())
 
-
-def compute_policy_hash(policy):
-
-    policy_content = {
-        "version": policy["version"],
-        "rule": policy["rule"],
-        "previous_hash": policy["previous_hash"]
-    }
-
-    policy_str = json.dumps(policy_content).encode()
-    return hashlib.sha256(policy_str).hexdigest()
-
-
-def verify_policy(policy_path):
-
-    with open(CONFIG) as f:
-        cfg = json.load(f)
-
-    required = cfg["required_signatures"]
-
-    with open(policy_path) as f:
+def verify_policy(filepath):
+    if not os.path.exists(filepath):
+        print(f"File not found: {filepath}")
+        return False, []
+        
+    with open(filepath, "r") as f:
         policy = json.load(f)
-
-    stored_hash = policy["policy_hash"]
-    computed_hash = compute_policy_hash(policy)
-
-    if stored_hash != computed_hash:
-
-        print("POLICY TAMPERED — HASH MISMATCH")
+        
+    # 1. RECONSTRUCT IMMUTABLE PAYLOAD
+    # This MUST perfectly match the dictionary in policy_manager.py
+    try:
+        policy_content = {
+            "policyName": policy["policyName"],
+            "version": policy["version"],
+            "previous_hash": policy["previous_hash"],
+            "rule": policy["rule"],
+            "creator": policy["creator"],
+            "created_at": policy["created_at"],
+            "justification": policy["justification"]
+        }
+    except KeyError as e:
+        print(f"POLICY REJECTED: Missing critical field for hash reconstruction - {e}")
         return False, []
 
-    policy_hash = stored_hash
-
-    valid = 0
-    signers = []
-
-    for sig in policy["signatures"]:
-
+    # 2. RECALCULATE HASH (Deterministic)
+    policy_str = json.dumps(policy_content, sort_keys=True).encode()
+    recalculated_hash = hashlib.sha256(policy_str).hexdigest()
+    
+    # 3. CHECK FOR TAMPERING
+    if recalculated_hash != policy["policy_hash"]:
+        print("POLICY TAMPERED — HASH MISMATCH")
+        print(f"Expected: {policy['policy_hash']}")
+        print(f"Got:      {recalculated_hash}")
+        return False, []
+        
+    # 4. VERIFY ED25519 SIGNATURES
+    valid_signers = []
+    for sig in policy.get("signatures", []):
         admin = sig["admin"]
-        signature = bytes.fromhex(sig["signature"])
-
-        pub = load_public_key(f"keys/{admin}_public.pem")
-
+        signature_hex = sig["signature"]
+        
         try:
-            pub.verify(signature, policy_hash.encode())
-            valid += 1
-            signers.append(admin)
-
-        except:
-            print("Invalid signature from", admin)
-
-    if valid >= required:
-
-        print("POLICY VERIFIED")
-        return True, signers
-
-    else:
-
-        print("Verification failed")
-        return False, signers
+            public_key = load_public_key(admin)
+            # Verify the signature using the verified hash
+            public_key.verify(bytes.fromhex(signature_hex), policy["policy_hash"].encode())
+            valid_signers.append(admin)
+        except Exception as e:
+            print(f"INVALID SIGNATURE DETECTED from {admin}: {e}")
+            
+    # 5. CHECK THRESHOLD
+    if len(valid_signers) < REQUIRED_SIGNATURES:
+        print(f"Verification Failed: Not enough valid signatures. Got {len(valid_signers)}, need {REQUIRED_SIGNATURES}")
+        return False, valid_signers
+        
+    return True, valid_signers

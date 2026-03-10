@@ -1,49 +1,46 @@
-const API = "http://localhost:8000"
+import axios from 'axios';
 
-export async function login(data) {
+const API_BASE_URL = 'http://127.0.0.1:8000'; // Default Uvicorn address
 
-    const res = await fetch(`${API}/login`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
+const api = axios.create({
+    baseURL: API_BASE_URL,
+});
 
-    return res.json()
+export const policyAPI = {
+    login: (username, password) =>
+        api.post('/login', { username, password }),
 
-}
+    createPolicy: (name, version, rule, prevHash, creator, justification) =>
+        api.post('/create-policy', {
+            name,          // <--- Added Name
+            version,
+            rule,
+            prev_hash: prevHash,
+            creator,
+            justification
+        }),
 
-export async function createPolicy(data) {
+    // FIXED: Now sends a JSON body matching 'SignRequest'
+    signPolicy: (fileName, adminName) =>
+        api.post('/sign-policy', {
+            filename: fileName,
+            admin_name: adminName
+        }),
 
-    const res = await fetch(`${API}/create-policy`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
+    // FIXED: Now sends a JSON body matching 'VerifyRequest'
+    verifyPolicy: (fileName) =>
+        api.post('/verify-policy', {
+            policy: fileName
+        }),
 
-    return res.json()
+    // FIXED: Now sends a JSON body matching 'ApplyRequest'
+    applyPolicy: (fileName) =>
+        api.post('/apply-policy', {
+            policy: fileName
+        }),
 
-}
+    listPolicies: () => api.get('/list-policies'),
+    getStats: () => api.get('/system-stats'),
+};
 
-export async function signPolicy(data) {
-
-    const res = await fetch(`${API}/sign-policy`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-
-    return res.json()
-
-}
-
-export async function verifyPolicy(policy) {
-
-    const res = await fetch(`${API}/verify-policy`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ policy })
-    })
-
-    return res.json()
-
-}
+export default api;

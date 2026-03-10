@@ -1,35 +1,88 @@
-import { useState } from "react";
-
-import Login from "./pages/Login";
+import React, { useState } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
 import CreatePolicy from "./pages/CreatePolicy";
 import Policies from "./pages/Policies";
+import Login from "./pages/Login";
 
-export default function App() {
-  const [admin, setAdmin] = useState(null);
-  const [page, setPage] = useState("dashboard");
+function App() {
+  // Store user as an object: { role: 'admin', name: 'admin1' }
+  const [user, setUser] = useState(null);
 
-  if (!admin) {
-    return <Login setAdmin={setAdmin} />;
-  }
+  const handleLogin = (role, name) => {
+    setUser({ role, name });
+  };
 
-  let content;
-
-  if (page === "dashboard") content = <Dashboard />;
-  if (page === "create") content = <CreatePolicy />;
-  if (page === "policies") content = <Policies admin={admin} />;
+  const handleLogout = () => {
+    setUser(null);
+  };
 
   return (
-    <div>
-      <h1>VeriWall Admin Portal</h1>
+    <Router>
+      <div className="min-h-screen bg-slate-950">
+        {/* Navbar only shows if a user is logged in */}
+        {user && <Navbar user={user} onLogout={handleLogout} />}
 
-      <div>
-        <button onClick={() => setPage("dashboard")}>Dashboard</button>
-        <button onClick={() => setPage("create")}>Create Policy</button>
-        <button onClick={() => setPage("policies")}>Policies</button>
+        <main className="container mx-auto">
+          <Routes>
+            {/* 1. Login Route: If logged in, go to dashboard. If not, show Login */}
+            <Route
+              path="/"
+              element={
+                user ? (
+                  <Navigate to="/dashboard" />
+                ) : (
+                  <Login onLogin={handleLogin} />
+                )
+              }
+            />
+
+            {/* 2. Dashboard: Shared by all roles */}
+            <Route
+              path="/dashboard"
+              element={
+                user ? (
+                  <Dashboard adminName={user.name} userRole={user.role} />
+                ) : (
+                  <Navigate to="/" />
+                )
+              }
+            />
+
+            {/* 3. Create Policy: STRICTLY for Admins */}
+            <Route
+              path="/create"
+              element={
+                user?.role === "admin" ? (
+                  <CreatePolicy adminName={user.name} />
+                ) : (
+                  <Navigate to="/" />
+                )
+              }
+            />
+
+            {/* 4. Policy Audit: Shared by all roles */}
+            <Route
+              path="/policies"
+              element={
+                user ? (
+                  <Policies userRole={user.role} adminName={user.name} />
+                ) : (
+                  <Navigate to="/" />
+                )
+              }
+            />
+          </Routes>
+        </main>
       </div>
-
-      {content}
-    </div>
+    </Router>
   );
 }
+
+export default App;
