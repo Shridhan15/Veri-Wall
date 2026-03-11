@@ -1,79 +1,96 @@
 import React from "react";
-import { Link } from "react-router-dom"; // Use Link instead of <a>
+import { Link, useNavigate } from "react-router-dom";
 import {
   Shield,
+  LogOut,
   LayoutDashboard,
   PlusCircle,
-  History,
-  LogOut,
+  FileSignature,
+  Activity,
 } from "lucide-react";
 
 const Navbar = ({ user, onLogout }) => {
+  const navigate = useNavigate();
+
+  // Safety check: if there is no user object, hide the navbar
+  if (!user) return null;
+
+  // Extract the name and role from the user object passed by App.jsx
+  const adminName = user.name;
+  const userRole = user.role;
+
+  const handleLogout = () => {
+    onLogout(); // Clears the state in App.jsx
+    navigate("/"); // Redirects to login
+  };
+
   return (
-    <nav className="bg-slate-900 text-white p-4 shadow-xl border-b border-slate-700">
-      <div className="container mx-auto flex justify-between items-center">
-        {/* Brand Logo */}
-        <Link
-          to="/dashboard"
-          className="flex items-center gap-2 text-xl font-bold tracking-tight group"
-        >
-          <Shield
-            className="text-emerald-400 group-hover:scale-110 transition-transform"
-            size={28}
-          />
-          <span>
-            VERI<span className="text-emerald-400">WALL</span>
-          </span>
-        </Link>
+    <nav className="bg-slate-900 border-b border-slate-800 px-8 py-4 flex justify-between items-center sticky top-0 z-40 shadow-xl">
+      <div className="flex items-center gap-8">
+        {/* Brand */}
+        <div className="flex items-center gap-2 text-emerald-400 font-bold text-xl tracking-widest">
+          <Shield size={28} />
+          <span>VERIWALL</span>
+        </div>
 
-        {/* Navigation Links */}
-        <div className="flex items-center gap-8">
-          <div className="flex gap-6 border-r border-slate-700 pr-6">
+        {/* Role-Based Navigation Links */}
+        <div className="hidden md:flex items-center gap-1">
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg transition-all text-sm font-bold"
+          >
+            <LayoutDashboard size={18} /> Dashboard
+          </Link>
+
+          {/* Admins Only */}
+          {userRole === "admin" && (
             <Link
-              to="/dashboard"
-              className="flex items-center gap-2 hover:text-emerald-400 transition-colors text-sm font-medium"
+              to="/create"
+              className="flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg transition-all text-sm font-bold"
             >
-              <LayoutDashboard size={18} /> Dashboard
+              <PlusCircle size={18} /> New Policy
             </Link>
+          )}
 
-            {/* Only show 'New Policy' if user is an admin */}
-            {user?.role === "admin" && (
-              <Link
-                to="/create"
-                className="flex items-center gap-2 hover:text-emerald-400 transition-colors text-sm font-medium"
-              >
-                <PlusCircle size={18} /> New Policy
-              </Link>
-            )}
-
+          {/* Admins & Verifiers Only */}
+          {(userRole === "admin" || userRole === "verifier") && (
             <Link
               to="/policies"
-              className="flex items-center gap-2 hover:text-emerald-400 transition-colors text-sm font-medium"
+              className="flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-2 rounded-lg transition-all text-sm font-bold"
             >
-              <History size={18} /> Audit Log
+              <FileSignature size={18} /> Policy Governance
             </Link>
-          </div>
+          )}
 
-          {/* User Info & Logout */}
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest leading-none">
-                {user?.role}
-              </p>
-              <p className="text-sm font-mono text-emerald-400">{user?.name}</p>
-            </div>
-            <button
-              onClick={onLogout}
-              className="p-2 hover:bg-rose-500/10 hover:text-rose-400 rounded-lg transition-colors group"
-              title="Logout"
+          {/* Auditors Only */}
+          {userRole === "auditor" && (
+            <Link
+              to="/logs"
+              className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/20 px-4 py-2 rounded-lg transition-all text-sm font-bold"
             >
-              <LogOut
-                size={20}
-                className="group-hover:translate-x-0.5 transition-transform"
-              />
-            </button>
-          </div>
+              <Activity size={18} /> SIEM Activity Logs
+            </Link>
+          )}
         </div>
+      </div>
+
+      {/* User Profile & Logout */}
+      <div className="flex items-center gap-6 border-l border-slate-700 pl-6">
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">
+            {userRole}
+          </span>
+          <span className="text-sm font-mono text-emerald-400 font-bold">
+            {adminName}
+          </span>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="text-slate-500 hover:text-rose-400 transition-colors p-2 rounded-lg hover:bg-slate-800"
+          title="Secure Logout"
+        >
+          <LogOut size={20} />
+        </button>
       </div>
     </nav>
   );

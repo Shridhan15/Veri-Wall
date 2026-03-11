@@ -50,23 +50,6 @@ const Policies = ({ userRole, adminName }) => {
     }
   };
 
-  const handleVerifyAndApply = async (fileName) => {
-    try {
-      const res = await policyAPI.applyPolicy(fileName);
-      if (res.data.status === "policy applied") {
-        alert("Policy verified and enforced!");
-      } else {
-        alert("Verification failed: " + res.data.status);
-      }
-      fetchPolicies();
-    } catch (err) {
-      alert(
-        "Error in verification process: " +
-          (err.response?.data?.detail || err.message),
-      );
-    }
-  };
-
   return (
     <div className="p-8 bg-slate-950 min-h-screen text-slate-200">
       <div className="flex justify-between items-center mb-8">
@@ -200,24 +183,6 @@ const Policies = ({ userRole, adminName }) => {
                               </button>
                             )}
                           </>
-                        )}
-
-                        {/* 3. VERIFIER ACTIONS (Enforce) */}
-                        {userRole === "verifier" && (
-                          <button
-                            onClick={() => handleVerifyAndApply(p.fileName)}
-                            disabled={p.status !== "Verified"}
-                            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                              p.status === "Verified"
-                                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 active:scale-95"
-                                : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
-                            }`}
-                          >
-                            <ShieldCheck size={14} />
-                            {p.status === "Verified"
-                              ? "Verify & Enforce"
-                              : "Awaiting Signatures"}
-                          </button>
                         )}
                       </div>
                     </td>

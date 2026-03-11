@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000'; // Default Uvicorn address
+const API_BASE_URL = 'http://172.20.8.163:8000'; // Default Uvicorn address
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -9,6 +9,8 @@ const api = axios.create({
 export const policyAPI = {
     login: (username, password) =>
         api.post('/login', { username, password }),
+
+    getActivityLogs: () => api.get('/activity-logs'),
 
     createPolicy: (name, version, rule, prevHash, creator, justification) =>
         api.post('/create-policy', {

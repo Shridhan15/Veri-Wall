@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import CreatePolicy from "./pages/CreatePolicy";
 import Policies from "./pages/Policies";
 import Login from "./pages/Login";
+import ActivityLogs from "./pages/ActivityLogs";
 
 function App() {
   // Store user as an object: { role: 'admin', name: 'admin1' }
@@ -67,12 +68,24 @@ function App() {
               }
             />
 
-            {/* 4. Policy Audit: Shared by all roles */}
+            {/* 4. Policy Governance: STRICTLY for Admins & Verifiers */}
             <Route
               path="/policies"
               element={
-                user ? (
+                user?.role === "admin" || user?.role === "verifier" ? (
                   <Policies userRole={user.role} adminName={user.name} />
+                ) : (
+                  <Navigate to="/" />
+                )
+              }
+            />
+
+            {/* 5. SIEM Activity Logs: STRICTLY for Auditors */}
+            <Route
+              path="/logs"
+              element={
+                user?.role === "auditor" ? (
+                  <ActivityLogs />
                 ) : (
                   <Navigate to="/" />
                 )

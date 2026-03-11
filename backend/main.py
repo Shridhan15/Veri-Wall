@@ -9,6 +9,7 @@ from src.policy_manager import create_policy
 from src.signer import sign_policy
 from src.verifier import verify_policy
 from src.enforcer import apply_policy
+from src.logger import log_event # Centralized logging engine
 
 app = FastAPI(title="VeriWall API")
 
@@ -21,15 +22,15 @@ app.add_middleware(
 )
 
 REQUIRED_SIGNATURES = 2
- 
+
 USER_DB = {
     "admin1": {"password": "admin123", "role": "admin", "display_name": "Alice (Lead Admin)"},
     "admin2": {"password": "admin123", "role": "admin", "display_name": "Bob (SecOps)"},
     "admin3": {"password": "admin123", "role": "admin", "display_name": "Charlie (Compliance)"},
     "admin4": {"password": "admin123", "role": "admin", "display_name": "Diana (Network Eng)"},
-    "verifier": {"password": "verify123", "role": "verifier", "display_name": "System Verifier Node"}
+     "auditor1": {"password": "audit123", "role": "auditor", "display_name": "Eve (External Auditor)"}
 }
- 
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -51,7 +52,6 @@ class VerifyRequest(BaseModel):
 
 class ApplyRequest(BaseModel):
     policy: str 
- 
 
 @app.get("/")
 def home():
@@ -61,7 +61,12 @@ def home():
 def login(creds: LoginRequest):
     user = USER_DB.get(creds.username)
     if not user or user["password"] != creds.password:
+        # LOGGING: Failed Login
+        log_event("LOGIN_FAILED", creds.username, "Invalid credentials provided.", "warning")
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    # LOGGING: Successful Login
+    log_event("LOGIN", creds.username, f"User authenticated as {user['role']}.", "info")
     return {
         "success": True,
         "username": creds.username,
@@ -75,7 +80,8 @@ def create(data: PolicyCreateRequest):
         raise HTTPException(status_code=400, detail="Policy name is compulsory.")
         
     try:
-        create_policy(
+        # Capture the returned policy dictionary
+        new_policy = create_policy(
             name=data.name.strip(),
             version=data.version, 
             rule_data=data.rule, 
@@ -83,16 +89,55 @@ def create(data: PolicyCreateRequest):
             creator=data.creator,
             justification=data.justification
         )
+        
+        # LOGGING: Pass the new_policy as the payload snapshot!
+        log_event("POLICY_DRAFTED", data.creator, f"Drafted '{data.name.strip()}' (v{data.version}).", "info", payload=new_policy)
         return {"status": "policy created"}
     except ValueError as e:
+        log_event("DRAFT_REJECTED", data.creator, str(e), "warning")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/sign-policy")
 def sign(data: SignRequest):
+    draft_path = f"policies/draft/{data.filename}"
+    
+    # 1. Capture the state of the policy BEFORE signing (useful for tamper alerts)
+    policy_snapshot = None
+    if os.path.exists(draft_path):
+        with open(draft_path, "r") as f:
+            policy_snapshot = json.load(f)
+
+    # 2. Attempt the signature
     success, message = sign_policy(data.filename, data.admin_name)
+    
     if not success:
+        severity = "danger" if "SECURITY ALERT" in message else "warning"
+        # LOGGING: Attach snapshot so auditor sees the tampered file!
+        log_event("SIGN_REJECTED", data.admin_name, message, severity, payload=policy_snapshot)
         raise HTTPException(status_code=400, detail=message)
+    
+    # 3. Capture the state AFTER successful signing
+    with open(draft_path, "r") as f:
+        updated_policy = json.load(f)
+        
+    log_event("POLICY_SIGNED", data.admin_name, f"Applied cryptographic signature to {data.filename}.", "success", payload=updated_policy)
+
+    # --- AUTOMATED MULTI-SIG ENFORCEMENT ---
+    if len(updated_policy.get("signatures", [])) >= REQUIRED_SIGNATURES:
+        is_valid, signers = verify_policy(draft_path)
+        
+        if is_valid:
+            apply_success, apply_message = apply_policy(data.filename)
+            if apply_success:
+                log_event("AUTO_ENFORCED", "System", f"Threshold met (2/2). Automatically deployed {data.filename}.", "success", payload=updated_policy)
+                return {"status": "success", "message": "Signed successfully! Threshold met: Policy automatically enforced."}
+            else:
+                log_event("AUTO_ENFORCE_FAILED", "System", apply_message, "danger", payload=updated_policy)
+        else:
+            log_event("VERIFY_FAILED", "System", f"Cryptographic verification failed during auto-enforce for {data.filename}.", "danger", payload=updated_policy)
+
     return {"status": "success", "message": message}
+
 
 @app.post("/verify-policy")
 def verify(data: VerifyRequest):
@@ -102,20 +147,14 @@ def verify(data: VerifyRequest):
         "verified": ok,
         "signers": signers
     }
-
-@app.post("/apply-policy")
-def apply(data: ApplyRequest):
-    draft_path = f"policies/draft/{data.policy}"
-    
-    is_valid, signers = verify_policy(draft_path)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail="Cryptographic verification failed.")
-        
-    success, message = apply_policy(data.policy)
-    if not success:
-        raise HTTPException(status_code=500, detail=message)
-        
-    return {"status": "policy applied", "message": message, "signers": signers}
+ 
+@app.get("/activity-logs")
+def get_activity_logs():
+    path = "logs/system_events.json"
+    if not os.path.exists(path):
+        return []
+    with open(path, "r") as f:
+        return json.load(f)
 
 @app.get("/list-policies")
 def list_policies():
@@ -220,8 +259,6 @@ def get_stats():
         "pending_list": pending_list,    
         "alert_list": alert_list         
     }
-
-
 
 @app.get("/active-policies")
 def get_active_policies():
