@@ -14,11 +14,9 @@ def apply_policy(filename):
     if not os.path.exists(draft_path):
         return False, "Draft policy not found."
         
-    try:
-        # 1. Move the specific version into the active folder (for historical tracking)
+    try: 
         shutil.move(draft_path, history_path)
-        
-        # 2. Copy it to be the standard "active_policy.json" the system runs on
+         
         shutil.copy(history_path, active_path)
         
         return True, "Policy successfully enforced and moved to active state."

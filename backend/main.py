@@ -21,8 +21,7 @@ app.add_middleware(
 )
 
 REQUIRED_SIGNATURES = 2
-
-# --- DATABASE MOCK ---
+ 
 USER_DB = {
     "admin1": {"password": "admin123", "role": "admin", "display_name": "Alice (Lead Admin)"},
     "admin2": {"password": "admin123", "role": "admin", "display_name": "Bob (SecOps)"},
@@ -30,14 +29,13 @@ USER_DB = {
     "admin4": {"password": "admin123", "role": "admin", "display_name": "Diana (Network Eng)"},
     "verifier": {"password": "verify123", "role": "verifier", "display_name": "System Verifier Node"}
 }
-
-# --- PYDANTIC MODELS ---
+ 
 class LoginRequest(BaseModel):
     username: str
     password: str
 
 class PolicyCreateRequest(BaseModel):
-    name: str # NEW: Compulsory Name
+    name: str  
     version: int
     rule: str
     prev_hash: str
@@ -53,8 +51,7 @@ class VerifyRequest(BaseModel):
 
 class ApplyRequest(BaseModel):
     policy: str 
-
-# --- ROUTES ---
+ 
 
 @app.get("/")
 def home():
@@ -73,8 +70,7 @@ def login(creds: LoginRequest):
     }
 
 @app.post("/create-policy")
-def create(data: PolicyCreateRequest):
-    # API-level validation to ensure name is not empty
+def create(data: PolicyCreateRequest): 
     if not data.name or not data.name.strip():
         raise HTTPException(status_code=400, detail="Policy name is compulsory.")
         
@@ -136,12 +132,12 @@ def list_policies():
                 policy_list.append({
                     "id": data.get("version"),
                     "fileName": filename,
-                    "policyName": data.get("policyName", filename), # Added for Modal
+                    "policyName": data.get("policyName", filename), 
                     "hash": data.get("policy_hash", "N/A"),
                     "creator": data.get("creator", "Unknown"),
                     "signatures": data.get("signatures", []), 
-                    "justification": data.get("justification", ""), # Added for Modal
-                    "rule_content": data.get("rule", {}), # Added for Modal payload view
+                    "justification": data.get("justification", ""),  
+                    "rule_content": data.get("rule", {}),  
                     "status": "Verified" if sig_count >= REQUIRED_SIGNATURES else "Pending",
                     "required_signatures": REQUIRED_SIGNATURES 
                 })
@@ -151,21 +147,76 @@ def list_policies():
 def get_stats():
     draft_path = "policies/draft/"
     active_path = "policies/active/"
+    quarantine_path = "policies/quarantine/"
     
-    # 1. Count actual ACTIVE policies (Files that have been successfully deployed)
-    active = 0
+    active_list = []
+    pending_list = []
+    alert_list = []
+
+    # Get Active Policies
     if os.path.exists(active_path):
-        # Count all deployed versions (excluding the "active_policy.json" symlink/copy)
-        active = len([f for f in os.listdir(active_path) if f.endswith(".json") and f != "active_policy.json"])
+        for f in os.listdir(active_path):
+            if f.endswith(".json") and f != "active_policy.json":
+                with open(os.path.join(active_path, f), "r") as p:
+                    data = json.load(p)
+                    active_list.append({
+                        "id": data.get("version"),
+                        "fileName": f, 
+                        "policyName": data.get("policyName", f), 
+                        "creator": data.get("creator", "System"),
+                        "hash": data.get("policy_hash", "N/A"),
+                        "justification": data.get("justification", ""),
+                        "rule_content": data.get("rule", {}),
+                        "signatures": data.get("signatures", []),
+                        "required_signatures": REQUIRED_SIGNATURES
+                    })
     
-    # 2. Count drafts awaiting signatures OR awaiting the Verifier
-    pending = 0
+    # Get Pending Drafts
     if os.path.exists(draft_path):
-        pending = len([f for f in os.listdir(draft_path) if f.endswith(".json")])
+        for f in os.listdir(draft_path):
+            if f.endswith(".json"):
+                with open(os.path.join(draft_path, f), "r") as p:
+                    data = json.load(p)
+                    sig_count = len(data.get("signatures", []))
+                    pending_list.append({
+                        "id": data.get("version"),
+                        "fileName": f, 
+                        "policyName": data.get("policyName", f), 
+                        "creator": data.get("creator", "Unknown"),
+                        "hash": data.get("policy_hash", "N/A"),
+                        "justification": data.get("justification", ""),
+                        "rule_content": data.get("rule", {}),
+                        "signatures": data.get("signatures", []),
+                        "required_signatures": REQUIRED_SIGNATURES,
+                        "status": "Verified" if sig_count >= REQUIRED_SIGNATURES else "Pending",
+                        "sig_count": sig_count
+                    })
+                    
+    # Get Quarantined/Alert Policies
+    if os.path.exists(quarantine_path):
+        for f in os.listdir(quarantine_path):
+            if f.endswith(".json"):
+                with open(os.path.join(quarantine_path, f), "r") as p:
+                    data = json.load(p)
+                    alert_list.append({
+                        "id": data.get("version"),
+                        "fileName": f, 
+                        "policyName": data.get("policyName", f), 
+                        "detected_by": data.get("tamper_detected_by", "Unknown"),
+                        "creator": data.get("creator", "Unknown"),
+                        "hash": data.get("policy_hash", "N/A"),
+                        "justification": data.get("justification", ""),
+                        "rule_content": data.get("rule", {}),
+                        "signatures": data.get("signatures", []),
+                        "required_signatures": REQUIRED_SIGNATURES
+                    })
                     
     return {
-        "active_policies": active,
-        "pending_signatures": pending, # This includes both awaiting signatures AND awaiting enforcement
-        "verified_admins": len(USER_DB) - 1, 
-        "alerts": 0
+        "active_policies": len(active_list),
+        "pending_signatures": len(pending_list),
+        "verified_admins": len(USER_DB) - 1,
+        "alerts": len(alert_list),
+        "active_list": active_list,      
+        "pending_list": pending_list,    
+        "alert_list": alert_list         
     }

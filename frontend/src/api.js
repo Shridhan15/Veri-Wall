@@ -12,28 +12,24 @@ export const policyAPI = {
 
     createPolicy: (name, version, rule, prevHash, creator, justification) =>
         api.post('/create-policy', {
-            name,          // <--- Added Name
+            name,          
             version,
             rule,
             prev_hash: prevHash,
             creator,
             justification
         }),
-
-    // FIXED: Now sends a JSON body matching 'SignRequest'
+ 
     signPolicy: (fileName, adminName) =>
         api.post('/sign-policy', {
             filename: fileName,
             admin_name: adminName
-        }),
-
-    // FIXED: Now sends a JSON body matching 'VerifyRequest'
+        }), 
     verifyPolicy: (fileName) =>
         api.post('/verify-policy', {
             policy: fileName
         }),
-
-    // FIXED: Now sends a JSON body matching 'ApplyRequest'
+ 
     applyPolicy: (fileName) =>
         api.post('/apply-policy', {
             policy: fileName

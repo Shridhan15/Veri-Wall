@@ -1,15 +1,17 @@
 import json
 import os
 import hashlib
+import shutil
+from datetime import datetime, timezone
 from cryptography.hazmat.primitives import serialization
 
 DRAFT_DIR = "policies/draft/"
+QUARANTINE_DIR = "policies/quarantine/"  
 
 def load_private_key(admin_name):
     path = f"keys/{admin_name}_private.pem"
     if not os.path.exists(path):
         raise FileNotFoundError(f"Private key for {admin_name} not found.")
-        
     with open(path, "rb") as f:
         return serialization.load_pem_private_key(f.read(), password=None)
 
@@ -19,16 +21,13 @@ def sign_policy(filename, current_admin):
     with open(policy_path, "r") as f:
         policy = json.load(f)
 
-    # 1. Enforce Separation of Duties (Creator cannot sign)
     if policy.get("creator") == current_admin:
         return False, "Separation of Duties violation: Creator cannot sign their own policy."
 
-    # 2. Prevent Double Signing
     for sig in policy.get("signatures", []):
         if sig["admin"] == current_admin:
             return False, f"{current_admin} has already signed this policy."
-
-    # 3. WYSIWYS CHECK: RECALCULATE HASH BEFORE SIGNING
+ 
     try:
         policy_content = {
             "policyName": policy["policyName"],
@@ -40,31 +39,36 @@ def sign_policy(filename, current_admin):
             "justification": policy["justification"]
         }
         
-        # Deterministic Hash Generation
         policy_str = json.dumps(policy_content, sort_keys=True).encode()
         recalculated_hash = hashlib.sha256(policy_str).hexdigest()
-        
-        # Security Alert! The file data was modified after it was hashed.
+         
         if recalculated_hash != policy["policy_hash"]:
-            return False, "🚨 SECURITY ALERT: The policy file was tampered with after creation! Hash mismatch."
+            os.makedirs(QUARANTINE_DIR, exist_ok=True)
+             
+            policy["status"] = "COMPROMISED"
+            policy["tamper_detected_by"] = current_admin
+            policy["tamper_detected_at"] = datetime.now(timezone.utc).isoformat()
+             
+            with open(policy_path, "w") as f:
+                json.dump(policy, f, indent=4)
+                 
+            quarantine_path = os.path.join(QUARANTINE_DIR, filename)
+            shutil.move(policy_path, quarantine_path)
+            
+            return False, f"SECURITY ALERT: Hash mismatch detected. File '{filename}' has been quarantined!"
             
     except KeyError as e:
         return False, f"Malformed policy file. Missing field: {e}"
-
-    # 4. Load Private Key and Sign the VERIFIED Hash
+ 
     try:
         private_key = load_private_key(current_admin)
-        
-        # The actual cryptographic signing
         signature = private_key.sign(recalculated_hash.encode())
         
-        # Append the hex signature to the envelope
         policy["signatures"].append({
             "admin": current_admin,
             "signature": signature.hex()
         })
         
-        # Save updated file
         with open(policy_path, "w") as f:
             json.dump(policy, f, indent=4)
             

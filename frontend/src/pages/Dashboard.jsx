@@ -5,47 +5,48 @@ import {
   Key,
   Fingerprint,
   RefreshCcw,
-  PenTool,
+  ShieldAlert,
+  FileCheck,
+  Clock,
+  ShieldCheck,
+  Eye,
 } from "lucide-react";
 import { policyAPI } from "../api";
-import { Link } from "react-router-dom"; // Add this import
+import PolicyModal from "../components/PolicyModal"; // Import the modal!
 
 const Dashboard = ({ adminName, userRole }) => {
-  const [stats, setStats] = useState({
-    active: 0,
-    pending: 0,
-    admins: 0,
-    alerts: 0,
+  const [data, setData] = useState({
+    stats: { active: 0, pending: 0, admins: 0, alerts: 0 },
+    lists: { active: [], pending: [], alerts: [] },
   });
-  const [pendingPolicies, setPendingPolicies] = useState([]); // New state for action items
   const [loading, setLoading] = useState(true);
+v
+  // NEW: Modal State
+  const [selectedPolicy, setSelectedPolicy] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const openModal = (policy) => {
+    setSelectedPolicy(policy);
+    setIsModalOpen(true);
+  };
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        // 1. Load Stats
-        const statsRes = await policyAPI.getStats();
-        setStats({
-          active: statsRes.data.active_policies,
-          pending: statsRes.data.pending_signatures,
-          admins: statsRes.data.verified_admins,
-          alerts: statsRes.data.alerts,
+        const res = await policyAPI.getStats();
+        setData({
+          stats: {
+            active: res.data.active_policies,
+            pending: res.data.pending_signatures,
+            admins: res.data.verified_admins,
+            alerts: res.data.alerts,
+          },
+          lists: {
+            active: res.data.active_list,
+            pending: res.data.pending_list,
+            alerts: res.data.alert_list,
+          },
         });
-
-        // 2. Load Policies to find which ones need YOUR signature
-        const policyRes = await policyAPI.listPolicies();
-
-        // Filter policies: Needs to be Pending, NOT created by you, and NOT already signed by you
-        const actionRequired = policyRes.data.filter((p) => {
-          const isPending = p.status === "Pending";
-          const notCreator = p.creator !== adminName;
-          const notSigned = !(p.signatures || []).some(
-            (sig) => sig.admin === adminName,
-          );
-          return isPending && notCreator && notSigned;
-        });
-
-        setPendingPolicies(actionRequired);
       } catch (err) {
         console.error(err);
       } finally {
@@ -68,98 +69,182 @@ const Dashboard = ({ adminName, userRole }) => {
         <h1 className="text-3xl font-bold">System Overview</h1>
         <button
           onClick={() => window.location.reload()}
-          className="text-slate-500 hover:text-white transition-colors"
+          className="text-slate-500 hover:text-white transition-colors bg-slate-900 p-2 rounded-lg border border-slate-800"
         >
           <RefreshCcw size={20} />
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+      {/* Top Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Active Policies"
-          value={stats.active}
+          value={data.stats.active}
           icon={CheckCircle2}
           color="bg-emerald-500"
         />
         <StatCard
           title="Pending Review"
-          value={stats.pending}
+          value={data.stats.pending}
           icon={Fingerprint}
           color="bg-amber-500"
         />
         <StatCard
           title="Verified Admins"
-          value={stats.admins}
+          value={data.stats.admins}
           icon={Key}
           color="bg-blue-500"
         />
         <StatCard
           title="Security Alerts"
-          value={stats.alerts}
+          value={data.stats.alerts}
           icon={AlertCircle}
           color="bg-rose-500"
         />
       </div>
 
-      {/* NEW: Action Required Section */}
-      {userRole === "admin" && pendingPolicies.length > 0 && (
-        <div className="mb-10 bg-amber-900/20 border border-amber-500/30 rounded-xl p-6">
-          <h2 className="text-lg font-bold text-amber-500 flex items-center gap-2 mb-4">
-            <Fingerprint size={20} /> Action Required: Pending Your Signature
-          </h2>
-          <div className="grid grid-cols-1 gap-4">
-            {pendingPolicies.map((p) => (
-              <div
-                key={p.fileName}
-                className="flex justify-between items-center bg-slate-900 border border-slate-700 p-4 rounded-lg"
-              >
-                <div>
-                  <p className="font-mono font-bold text-emerald-400">
-                    {p.fileName}
-                  </p>
-                  <p className="text-xs text-slate-500 uppercase mt-1">
-                    Drafted by: {p.creator}
-                  </p>
-                </div>
-                {/* Redirects to Audit Log so they can sign it */}
-                <Link
-                  to="/policies"
-                  className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-lg shadow-amber-900/20"
-                >
-                  <PenTool size={16} /> Review & Sign
-                </Link>
-              </div>
-            ))}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Active Policies */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 shadow-lg">
+            <h2 className="text-lg font-bold mb-4 text-slate-300 flex items-center gap-2">
+              <FileCheck className="text-emerald-400" size={20} /> Active
+              Deployments
+            </h2>
+            <div className="space-y-3">
+              {data.lists.active.length === 0 ? (
+                <p className="text-slate-500 text-sm font-mono p-4 text-center border border-slate-800 border-dashed rounded-lg">
+                  No active policies deployed.
+                </p>
+              ) : (
+                data.lists.active.map((p) => (
+                  <div
+                    key={p.fileName}
+                    className="flex justify-between items-center bg-slate-950 p-4 rounded-lg border border-slate-800 hover:border-emerald-500/50 transition-colors"
+                  >
+                    <div>
+                      <p className="font-bold text-emerald-400 font-mono text-sm">
+                        {p.policyName}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">
+                        File: {p.fileName} | Deployed by: {p.creator}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] bg-emerald-900/30 text-emerald-400 px-2 py-1 rounded border border-emerald-800/50 font-bold uppercase tracking-widest hidden sm:inline-block">
+                        Enforced
+                      </span>
+                      {/* Review Button */}
+                      <button
+                        onClick={() => openModal(p)}
+                        className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all border border-slate-600"
+                      >
+                        <Eye size={14} /> Review
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
-      )}
 
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm">
-        <h2 className="text-xl font-semibold mb-4 text-slate-400">
-          Integrity Health
-        </h2>
-        <div
-          className={`flex items-center gap-3 p-4 rounded-lg border ${
-            stats.active > 0
-              ? "bg-emerald-900/10 border-emerald-500/30 text-emerald-400"
-              : "bg-slate-900/20 border-slate-700 text-slate-500"
-          }`}
-        >
-          <CheckCircle2 size={20} />
-          <p className="font-mono text-sm uppercase tracking-widest">
-            {stats.active > 0
-              ? "Hash Chain Intact: Cryptographic chain verified."
-              : "Awaiting Genesis Policy Deployment"}
-          </p>
+        {/* Right Column: Pending & Alerts */}
+        <div className="space-y-6">
+          {/* Quarantined / Alerts */}
+          {data.lists.alerts.length > 0 && (
+            <div className="bg-rose-950/20 border border-rose-900/50 rounded-xl p-6 shadow-lg">
+              <h2 className="text-lg font-bold mb-4 text-rose-500 flex items-center gap-2">
+                <ShieldAlert size={20} /> Security Alerts
+              </h2>
+              <div className="space-y-3">
+                {data.lists.alerts.map((p) => (
+                  <div
+                    key={p.fileName}
+                    className="bg-slate-950 p-4 rounded-lg border border-rose-900/50 flex flex-col gap-3"
+                  >
+                    <div>
+                      <p className="font-bold text-rose-400 font-mono text-xs truncate">
+                        {p.fileName}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Tamper caught by:{" "}
+                        <span className="text-rose-300 font-bold">
+                          {p.detected_by}
+                        </span>
+                      </p>
+                    </div>
+                    {/* Review Button */}
+                    <button
+                      onClick={() => openModal(p)}
+                      className="self-start flex items-center gap-1.5 bg-rose-900 hover:bg-rose-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all border border-rose-700"
+                    >
+                      <Eye size={14} /> Inspect Payload
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pending Policies */}
+          <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-6 shadow-lg">
+            <h2 className="text-lg font-bold mb-4 text-slate-300 flex items-center gap-2">
+              <Clock className="text-amber-500" size={20} /> Pending Actions
+            </h2>
+            <div className="space-y-3">
+              {data.lists.pending.length === 0 ? (
+                <p className="text-slate-500 text-sm font-mono p-4 text-center border border-slate-800 border-dashed rounded-lg">
+                  All caught up.
+                </p>
+              ) : (
+                data.lists.pending.map((p) => (
+                  <div
+                    key={p.fileName}
+                    className="bg-slate-950 p-4 rounded-lg border border-slate-800 flex flex-col gap-3"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-200 text-sm">
+                        {p.policyName}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Drafted by: {p.creator}
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span
+                        className={`text-[10px] px-2 py-1 rounded border font-bold uppercase ${p.status === "Verified" ? "bg-emerald-900/30 text-emerald-400 border-emerald-800/50" : "bg-amber-900/20 text-amber-400 border-amber-800/50"}`}
+                      >
+                        {p.status} ({p.sig_count} Sigs)
+                      </span>
+                      {/* Review Button */}
+                      <button
+                        onClick={() => openModal(p)}
+                        className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all border border-slate-600"
+                      >
+                        <Eye size={14} /> Review
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Mount the Modal! */}
+      <PolicyModal
+        policy={selectedPolicy}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );
 };
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
-  // ... Keep your existing StatCard component exactly the same ...
-  <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl shadow-lg hover:border-slate-600 transition-all group">
+  <div className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl shadow-lg transition-all group">
     <div className="flex justify-between items-start">
       <div>
         <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">

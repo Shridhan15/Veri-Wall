@@ -22,9 +22,7 @@ def verify_policy(filepath):
         
     with open(filepath, "r") as f:
         policy = json.load(f)
-        
-    # 1. RECONSTRUCT IMMUTABLE PAYLOAD
-    # This MUST perfectly match the dictionary in policy_manager.py
+         
     try:
         policy_content = {
             "policyName": policy["policyName"],
@@ -38,33 +36,28 @@ def verify_policy(filepath):
     except KeyError as e:
         print(f"POLICY REJECTED: Missing critical field for hash reconstruction - {e}")
         return False, []
-
-    # 2. RECALCULATE HASH (Deterministic)
+ 
     policy_str = json.dumps(policy_content, sort_keys=True).encode()
     recalculated_hash = hashlib.sha256(policy_str).hexdigest()
-    
-    # 3. CHECK FOR TAMPERING
+     
     if recalculated_hash != policy["policy_hash"]:
         print("POLICY TAMPERED — HASH MISMATCH")
         print(f"Expected: {policy['policy_hash']}")
         print(f"Got:      {recalculated_hash}")
         return False, []
-        
-    # 4. VERIFY ED25519 SIGNATURES
+         
     valid_signers = []
     for sig in policy.get("signatures", []):
         admin = sig["admin"]
         signature_hex = sig["signature"]
         
         try:
-            public_key = load_public_key(admin)
-            # Verify the signature using the verified hash
+            public_key = load_public_key(admin) 
             public_key.verify(bytes.fromhex(signature_hex), policy["policy_hash"].encode())
             valid_signers.append(admin)
         except Exception as e:
             print(f"INVALID SIGNATURE DETECTED from {admin}: {e}")
-            
-    # 5. CHECK THRESHOLD
+             
     if len(valid_signers) < REQUIRED_SIGNATURES:
         print(f"Verification Failed: Not enough valid signatures. Got {len(valid_signers)}, need {REQUIRED_SIGNATURES}")
         return False, valid_signers
