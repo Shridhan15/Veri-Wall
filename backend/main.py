@@ -220,3 +220,33 @@ def get_stats():
         "pending_list": pending_list,    
         "alert_list": alert_list         
     }
+
+
+
+@app.get("/active-policies")
+def get_active_policies():
+    path = "policies/active/"
+    if not os.path.exists(path): 
+        return []
+    
+    latest_policies = {} # Dictionary to store only the highest version
+    
+    for filename in os.listdir(path):
+        if filename.endswith(".json") and filename != "active_policy.json":
+            with open(os.path.join(path, filename), "r") as f:
+                data = json.load(f)
+                p_name = data.get("policyName", filename.split("_v")[0])
+                p_ver = data.get("version", 1)
+                
+                # If we haven't seen this policy, or this version is higher, save it
+                if p_name not in latest_policies or latest_policies[p_name]["id"] < p_ver:
+                    latest_policies[p_name] = {
+                        "id": p_ver,
+                        "fileName": filename,
+                        "policyName": p_name,
+                        "hash": data.get("policy_hash", ""),
+                        "rule": data.get("rule", {}),
+                    }
+                    
+    # Convert dictionary back to list for the frontend
+    return list(latest_policies.values())

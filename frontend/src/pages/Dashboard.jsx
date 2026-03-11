@@ -20,7 +20,7 @@ const Dashboard = ({ adminName, userRole }) => {
     lists: { active: [], pending: [], alerts: [] },
   });
   const [loading, setLoading] = useState(true);
-v
+
   // NEW: Modal State
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

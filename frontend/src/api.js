@@ -12,24 +12,26 @@ export const policyAPI = {
 
     createPolicy: (name, version, rule, prevHash, creator, justification) =>
         api.post('/create-policy', {
-            name,          
+            name,
             version,
             rule,
             prev_hash: prevHash,
             creator,
             justification
         }),
- 
+
+    getActivePolicies: () => api.get('/active-policies'),
+
     signPolicy: (fileName, adminName) =>
         api.post('/sign-policy', {
             filename: fileName,
             admin_name: adminName
-        }), 
+        }),
     verifyPolicy: (fileName) =>
         api.post('/verify-policy', {
             policy: fileName
         }),
- 
+
     applyPolicy: (fileName) =>
         api.post('/apply-policy', {
             policy: fileName
