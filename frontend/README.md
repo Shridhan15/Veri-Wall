@@ -1,16 +1,217 @@
-# React + Vite
+#  Cryptographically Secure Policy Governance System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A secure backend system for managing and enforcing policies using **cryptographic integrity, digital signatures, and multi-admin approval**.
 
-Currently, two official plugins are available:
+This system ensures that policies cannot be tampered with and can only be applied after **cryptographic verification and sufficient administrator approvals**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+#  Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+*  **Policy Integrity using SHA256 Hashing**
+*  **Digital Signatures using Ed25519**
+*  **Multi-Admin Approval System**
+*  **Tamper Detection**
+*  **Policy Versioning**
+*  **Policy History Tracking**
+*  **Separation of Duties (Creator cannot sign)**
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+# How the System Works
+
+##  Policy Creation
+
+When a policy is created:
+
+* Policy content is structured
+* A **SHA256 hash** is generated from immutable fields
+* The policy is saved in the **draft folder**
+
+```
+policy_hash = SHA256(policy_content)
+```
+
+This ensures the policy cannot be modified without detection.
+
+---
+
+##  Policy Signing
+
+Admins approve policies using **digital signatures**.
+
+Each admin signs the **policy hash** using their private key.
+
+```
+signature = Sign(private_key, policy_hash)
+```
+
+The signature is stored inside the policy file.
+
+Example:
+
+```json
+"signatures": [
+  {
+    "admin": "admin2",
+    "signature": "8a3f9c..."
+  }
+]
+```
+
+Security rules enforced:
+
+* Creator **cannot sign their own policy**
+* Same admin **cannot sign twice**
+
+---
+
+##  Policy Verification
+
+Before enforcement, the system verifies:
+
+1. Policy integrity
+2. Digital signatures
+3. Minimum approval requirement
+
+### Integrity Verification
+
+The system recomputes the hash:
+
+```
+recalculated_hash = SHA256(policy_content)
+```
+
+If the hash does not match:
+
+```
+POLICY TAMPERED
+```
+
+---
+
+### Signature Verification
+
+Each signature is verified using the admin's **public key**.
+
+```
+Verify(public_key, signature, policy_hash)
+```
+
+Only valid signatures are counted.
+
+Minimum required signatures:
+
+```
+REQUIRED_SIGNATURES = 2
+```
+
+---
+
+## 4️Policy Enforcement
+
+Once verified:
+
+* Draft policy is moved to **active folder**
+* Policy becomes the **currently enforced system policy**
+
+```
+draft → active/history
+draft → active_policy.json
+```
+
+The system maintains a **history of all policies**.
+
+---
+
+ 
+
+---
+
+#  Cryptographic Components
+
+| Component   | Purpose                       |
+| ----------- | ----------------------------- |
+| SHA256      | Policy integrity verification |
+| Ed25519     | Digital signatures            |
+| Public Key  | Signature verification        |
+| Private Key | Signature generation          |
+
+---
+
+#  Policy Lifecycle
+
+```
+Create Policy
+      ↓
+Generate SHA256 Hash
+      ↓
+Store in Draft
+      ↓
+Admins Sign Policy
+      ↓
+Verify Hash + Signatures
+      ↓
+Apply Policy
+      ↓
+Move to Active Folder
+```
+
+---
+# API Endpoints
+
+## Create Policy
+
+```
+POST /create-policy
+```
+
+Creates a new draft policy.
+
+---
+
+## Sign Policy
+
+```
+POST /sign-policy
+```
+
+Admin signs a policy using their private key.
+
+---
+
+## Verify Policy
+
+```
+POST /verify-policy
+```
+
+Checks:
+
+* Hash integrity
+* Digital signatures
+* Required approvals
+
+---
+
+## Apply Policy
+
+```
+POST /apply-policy
+```
+
+Applies the verified policy and moves it to the active state.
+
+---
+
+# 🛡 Security Guarantees
+
+This system provides:
+
+* **Integrity** – Policies cannot be altered without detection
+* **Authentication** – Only authorized admins can sign
+* **Non-Repudiation** – Admins cannot deny their signatures
+* **Multi-Party Approval** – Policies require multiple signatures
+* **Auditability** – All policies are stored with version history
+
+ 
